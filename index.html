@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Docs HTML · Documento compartido</title>
+<meta name="description" content="Te compartieron un documento protegido en Docs HTML.">
+<meta property="og:title" content="Te compartieron un documento en Docs HTML">
+<meta property="og:description" content="Ábrelo en la app Docs HTML. Solo los correos aprobados pueden verlo.">
+<meta name="theme-color" content="#0b57d0">
+<link rel="icon" href="icono.png">
+<style>
+:root{--bg:#f0f4f9;--card:#fff;--on:#1f1f1f;--on2:#444746;--primary:#0b57d0;--onp:#fff;--soft:#d3e3fd;--onsoft:#041e49;--line:#e3e3e3;--ok:#e6f4ea;--onok:#0d652d;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--bg:#131314;--card:#1e1f20;--on:#e3e3e3;--on2:#c4c7c5;--primary:#a8c7fa;--onp:#062e6f;--soft:#0842a0;--onsoft:#d3e3fd;--line:#2d2f31;--ok:#0f3d22;--onok:#c4eed0;color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--on);font-family:Roboto,"Google Sans",system-ui,-apple-system,"Segoe UI",Arial,sans-serif}
+main{max-width:460px;margin:0 auto;padding:28px 16px 40px}
+.card{background:var(--card);border-radius:28px;padding:28px 22px 22px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.logo{width:64px;height:76px;margin:0 auto 10px;display:block}
+.brand{font-size:15px;color:var(--on2);margin:0 0 18px}
+h1{font-size:23px;font-weight:400;margin:0 0 6px;line-height:1.3}
+.from{color:var(--on2);font-size:15px;margin:0 0 22px}
+.btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;height:52px;border-radius:100px;font-size:16px;font-weight:500;text-decoration:none;border:0;cursor:pointer;margin-top:10px}
+.btn svg{width:22px;height:22px;fill:currentColor}
+.primary{background:var(--primary);color:var(--onp)}
+.tonal{background:var(--soft);color:var(--onsoft)}
+.btn:active{filter:brightness(.92)}
+.alert{background:var(--ok);color:var(--onok);border-radius:16px;padding:12px 14px;font-size:14px;text-align:left;margin:0 0 14px;display:none}
+.steps{text-align:left;margin:26px 0 0;padding:0;list-style:none;counter-reset:s}
+.steps li{counter-increment:s;display:flex;gap:12px;padding:9px 0;font-size:15px;line-height:1.4;color:var(--on2)}
+.steps li::before{content:counter(s);flex:none;width:26px;height:26px;border-radius:50%;background:var(--soft);color:var(--onsoft);font-size:14px;font-weight:500;display:grid;place-items:center}
+.steps b{color:var(--on);font-weight:500}
+.code{margin-top:20px;border-top:1px solid var(--line);padding-top:16px;font-size:14px;color:var(--on2)}
+.code b{font:500 20px "Roboto Mono",monospace;letter-spacing:3px;color:var(--on);display:block;margin-top:4px}
+.note{font-size:13px;color:var(--on2);margin:18px 6px 0;line-height:1.5;text-align:center}
+.lock{display:inline-flex;align-items:center;gap:6px}
+.lock svg{width:16px;height:16px;fill:currentColor}
+</style>
+</head>
+<body>
+<main>
+  <div class="card">
+    <svg class="logo" viewBox="0 0 30 36" aria-hidden="true"><path d="M3 0h17l10 10v23a3 3 0 0 1-3 3H3a3 3 0 0 1-3-3V3a3 3 0 0 1 3-3z" fill="#4285f4"/><path d="M20 0l10 10h-7a3 3 0 0 1-3-3z" fill="#a1c2fa"/><path d="M11.6 16.4 8 20.5l3.6 4.1M18.4 16.4l3.6 4.1-3.6 4.1M16.2 15l-2.4 11" stroke="#fff" stroke-width="2.1" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <p class="brand">Docs HTML</p>
+    <div class="alert" id="noapp">Parece que todavía no tienes la app. Descárgala con el botón de abajo, instálala y vuelve a tocar el enlace.</div>
+    <h1 id="title">Te compartieron un documento</h1>
+    <p class="from" id="from">Ábrelo en la app Docs HTML.</p>
+
+    <a class="btn primary" id="open" href="#">
+      <svg viewBox="0 0 24 24"><path d="M19 19H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>
+      Abrir en la app
+    </a>
+    <a class="btn tonal" id="get" href="DocsHTML.apk" download>
+      <svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+      Descargar la app (Android)
+    </a>
+
+    <ol class="steps">
+      <li><span>Si no tienes la app, toca <b>Descargar la app</b> e instálala (permite instalar apps de este navegador si te lo pide).</span></li>
+      <li><span>Abre Docs HTML y <b>crea tu cuenta con el correo que te aprobaron</b>.</span></li>
+      <li><span>Vuelve aquí y toca <b>Abrir en la app</b>. Si tu correo no está aprobado, podrás pedir acceso.</span></li>
+    </ol>
+
+    <div class="code" id="codebox" hidden>Código del documento<b id="code"></b></div>
+  </div>
+  <p class="note"><span class="lock"><svg viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>Documento protegido</span><br>Solo los correos aprobados por el propietario pueden verlo, y únicamente dentro de la app (sin capturas de pantalla).</p>
+</main>
+<script>
+(function () {
+  var q = new URLSearchParams(location.search);
+  var code = (q.get('c') || '').toUpperCase().replace(/[^0-9A-Z]/g, '').slice(0, 8);
+  var title = (q.get('t') || '').slice(0, 80);
+  var from = (q.get('de') || '').slice(0, 60);
+  var $ = function (id) { return document.getElementById(id); };
+  if (title) $('title').textContent = '«' + title + '»';
+  if (from) $('from').textContent = from + ' te compartió este documento.';
+  else if (code) $('from').textContent = 'Te compartieron este documento.';
+  if (title) document.title = title + ' · Docs HTML';
+  if (q.get('sinapp') === '1') $('noapp').style.display = 'block';
+  if (code) { $('code').textContent = code; $('codebox').hidden = false; }
+  else { $('open').style.display = 'none'; $('title').textContent = 'Docs HTML'; $('from').textContent = 'Documentos HTML protegidos: solo los correos que apruebes pueden abrirlos.'; }
+
+  var android = /android/i.test(navigator.userAgent);
+  var fallback = location.href.split('#')[0].replace(/([?&])sinapp=1&?/, '$1').replace(/[?&]$/, '');
+  fallback += (fallback.indexOf('?') >= 0 ? '&' : '?') + 'sinapp=1';
+  $('open').href = android
+    ? 'intent://abrir?c=' + code + '#Intent;scheme=docshtml;package=com.docshtml.app;S.browser_fallback_url=' + encodeURIComponent(fallback) + ';end'
+    : 'docshtml://abrir?c=' + code;
+  if (!android) {
+    $('get').insertAdjacentHTML('afterend', '<p class="note" style="margin-top:12px">La app es para teléfonos Android. Abre este enlace desde tu celular.</p>');
+  }
+})();
+</script>
+</body>
+</html>
