@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Docs HTML</title>
+<link rel="icon" href="../icono.png">
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- ============ Entrar ============ -->
+  <section id="scr-login" class="screen">
+    <div class="login-box">
+      <div class="login-logo" id="login-logo"></div>
+      <h1 class="login-title">Docs HTML</h1>
+      <p class="login-sub">Documentos HTML protegidos. Solo los correos que tú apruebes pueden abrirlos.</p>
+      <div class="login-note" id="login-note" hidden></div>
+      <div class="seg">
+        <button class="seg-btn active" data-tab="in">Iniciar sesión</button>
+        <button class="seg-btn" data-tab="up">Crear cuenta</button>
+      </div>
+      <form id="login-form" autocomplete="on">
+        <label class="field" id="f-name" hidden><span>Tu nombre</span><input id="in-name" type="text" autocomplete="name" maxlength="60"></label>
+        <label class="field"><span>Correo electrónico</span><input id="in-email" type="email" autocomplete="email" inputmode="email" autocapitalize="off" spellcheck="false" required></label>
+        <label class="field"><span>Contraseña</span><input id="in-pass" type="password" autocomplete="current-password" minlength="6" required></label>
+        <p class="form-err" id="login-err"></p>
+        <button class="btn-filled wide" id="login-go" type="submit">Iniciar sesión</button>
+      </form>
+      <p class="web-app-link" id="web-app-link" hidden>¿Usas Android? <a href="../DocsHTML.apk" download>Descarga la app</a> para mayor protección.</p>
+    </div>
+  </section>
+
+  <!-- ============ Lista de documentos ============ -->
+  <section id="scr-home" class="screen" hidden>
+    <header class="home-top">
+      <div class="searchbar">
+        <button class="icon-btn" id="btn-menu" aria-label="Menú"></button>
+        <input id="search" type="search" placeholder="Buscar en Docs HTML" autocomplete="off" spellcheck="false">
+        <button class="avatar" id="btn-avatar" aria-label="Cuenta"></button>
+      </div>
+      <div class="chips" id="chips">
+        <button class="chip active" data-f="all">Todos</button>
+        <button class="chip" data-f="mine">Míos</button>
+        <button class="chip" data-f="shared">Compartidos conmigo</button>
+      </div>
+    </header>
+    <main class="home-main" id="home-main">
+      <div class="ptr" id="ptr"><div class="ptr-spin"></div></div>
+      <div class="req-banner" id="req-banner" hidden></div>
+      <div class="list-head">
+        <span id="list-title">Recientes</span>
+        <button class="icon-btn small" id="btn-layout" aria-label="Cambiar vista"></button>
+      </div>
+      <div id="doc-list" class="doc-list"></div>
+    </main>
+    <button class="fab" id="fab-new" aria-label="Nuevo documento"></button>
+  </section>
+
+  <!-- ============ Documento ============ -->
+  <section id="scr-doc" class="screen" hidden>
+    <header class="doc-top" id="doc-top"></header>
+    <div class="doc-body" id="doc-body"></div>
+    <div class="fmt-bar" id="fmt-bar" hidden></div>
+    <button class="fab fab-edit" id="fab-edit" aria-label="Editar" hidden></button>
+  </section>
+
+</div>
+<div id="layers"></div>
+<div class="snack" id="snack"></div>
+<input type="file" id="pick-file" hidden>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
