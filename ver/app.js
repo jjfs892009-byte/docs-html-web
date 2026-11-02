@@ -1193,12 +1193,6 @@ const Doc = {
     f.srcdoc = html;
     body.appendChild(f);
     this.frame = f;
-    if (IS_WEB) {
-      const wm = document.createElement('div');
-      wm.className = 'watermark';
-      wm.style.backgroundImage = watermarkBg(`${Auth.email} · ${new Date().toLocaleDateString('es')}`);
-      body.appendChild(wm);
-    }
     if (!this.canEdit) {
       const chip = el(`<div class="ro-chip">${ic('lock')}Solo lectura · protegido</div>`);
       body.appendChild(chip);
