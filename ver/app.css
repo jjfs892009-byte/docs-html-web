@@ -274,3 +274,5 @@ svg.i { width: 24px; height: 24px; fill: currentColor; flex: none; display: bloc
 .web-app-link a { color: var(--primary); }
 .watermark { position: absolute; inset: 0; z-index: 2; pointer-events: none; background-repeat: repeat; }
 @media print { html, body { display: none !important; } }
+.doc-body iframe.dark { filter: invert(1) hue-rotate(180deg); }
+.doc-body iframe { will-change: transform; transform: translateZ(0); overscroll-behavior: contain; }

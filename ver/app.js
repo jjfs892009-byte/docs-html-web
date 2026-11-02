@@ -401,7 +401,8 @@ const PROTECT_STYLE = `*{-webkit-user-select:none!important;user-select:none!imp
 const PROTECT_SCRIPT = `(function(){var s=function(e){var t=e.target;if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'))return;e.preventDefault();};['selectstart','contextmenu','copy','cut','dragstart'].forEach(function(n){document.addEventListener(n,s,true);});document.addEventListener('click',function(e){var a=e.target&&e.target.closest?e.target.closest('a[href]'):null;if(!a)return;var h=a.getAttribute('href')||'';if(h.charAt(0)==='#')return;e.preventDefault();try{parent.postMessage({hdOpen:a.href},'*');}catch(x){}},true);})();`;
 
 // Documento oscuro: solo cambia cómo lo ves tú en esta app (no cambia el HTML guardado).
-const DARK_DOC_CSS = `html{filter:invert(1) hue-rotate(180deg)!important;background:#fff!important}img,video,picture,canvas,iframe,object,embed,[style*="background-image"],[style*="background: url"],[style*="background:url"]{filter:invert(1) hue-rotate(180deg)!important}`;
+// El marco completo se invierte con la GPU (clase .dark en el iframe); aquí solo se vuelven a invertir imágenes y videos.
+const DARK_DOC_CSS = `html{background:#fff}img,video,picture,canvas,iframe,object,embed,[data-yt]>span,[style*="background-image"],[style*="background: url"],[style*="background:url"]{filter:invert(1) hue-rotate(180deg)!important}`;
 const docDark = {
   get on() { return store.get('hd_docdark', !!CFG.dark); },
   set on(v) { store.set('hd_docdark', !!v); },
@@ -411,13 +412,20 @@ const docDark = {
     const st = d.createElement('style'); st.id = 'hd-dark-style'; st.textContent = DARK_DOC_CSS;
     (d.head || d.documentElement).appendChild(st);
   },
+  frame(f) { f.classList.toggle('dark', this.on); f.style.background = '#fff'; },
 };
 
 async function buildViewerHtml(html) {
   const d = parseHtml(html);
   await resolveMedia(d);
   docDark.apply(d);
-  for (const v of $$('video', d)) { v.setAttribute('controlsList', 'nodownload'); v.setAttribute('disablePictureInPicture', ''); v.setAttribute('playsinline', ''); if (!v.hasAttribute('controls')) v.setAttribute('controls', ''); }
+  for (const im of $$('img', d)) { if (!im.hasAttribute('loading')) im.setAttribute('loading', 'lazy'); im.setAttribute('decoding', 'async'); }
+  if (html.length > 400000) {
+    const perf = d.createElement('style');
+    perf.textContent = 'body>*{content-visibility:auto;contain-intrinsic-size:auto 120px}';
+    d.head.appendChild(perf);
+  }
+  for (const v of $$('video', d)) { v.setAttribute('preload', 'metadata'); v.setAttribute('controlsList', 'nodownload'); v.setAttribute('disablePictureInPicture', ''); v.setAttribute('playsinline', ''); if (!v.hasAttribute('controls')) v.setAttribute('controls', ''); }
   const st = d.createElement('style'); st.textContent = PROTECT_STYLE; d.head.appendChild(st);
   const sc = d.createElement('script'); sc.textContent = PROTECT_SCRIPT; d.body.appendChild(sc);
   return serialize(d);
@@ -1231,7 +1239,7 @@ const Doc = {
     snack(docDark.on ? 'Documento en oscuro (solo en tu pantalla).' : 'Documento en claro.');
     this.renderTop();
     if (this.mode === 'view') { await this.showView(); return; }
-    if (this.mode === 'edit' && this.fdoc) { docDark.apply(this.fdoc); this.frame.style.background = docDark.on ? '#000' : '#fff'; }
+    if (this.mode === 'edit' && this.fdoc) { docDark.apply(this.fdoc); docDark.frame(this.frame); }
   },
 
   back() {
@@ -1280,7 +1288,7 @@ const Doc = {
     f.setAttribute('sandbox', 'allow-scripts allow-forms allow-presentation');
     f.setAttribute('allow', 'fullscreen; autoplay');
     f.setAttribute('allowfullscreen', '');
-    f.style.background = docDark.on ? '#000' : '#fff';
+    docDark.frame(f);
     f.srcdoc = html;
     body.appendChild(f);
     this.frame = f;
@@ -1323,7 +1331,7 @@ const Doc = {
     const f = document.createElement('iframe');
     // sin allow-scripts: el código del documento no se ejecuta mientras se edita
     f.setAttribute('sandbox', 'allow-same-origin');
-    f.style.background = docDark.on ? '#000' : '#fff';
+    docDark.frame(f);
     f.srcdoc = serialize(d);
     body.appendChild(f);
     this.frame = f; this.codeEl = null;
@@ -1356,7 +1364,7 @@ const Doc = {
     const f = document.createElement('iframe');
     f.setAttribute('sandbox', 'allow-scripts allow-forms allow-presentation');
     f.setAttribute('allowfullscreen', '');
-    f.style.background = docDark.on ? '#000' : '#fff';
+    docDark.frame(f);
     f.srcdoc = html;
     $('.doc-body', node).appendChild(f);
     const L = pushLayer(node);
