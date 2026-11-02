@@ -317,13 +317,80 @@ function ensureDoc(html, title) {
   return wrapDoc(title || 'Documento sin título', s);
 }
 async function resolveMedia(d) {
-  const nodes = $$('[data-hd-src]', d);
-  if (!nodes.length) return;
+  const nodes = $$('[data-hd-src]', d), posters = $$('[data-hd-poster]', d);
+  if (!nodes.length && !posters.length) return;
   let urls = {};
-  try { urls = await files.sign([...new Set(nodes.map((n) => n.getAttribute('data-hd-src')))]); } catch (e) { snack('No se pudieron cargar los videos: ' + e.message); }
+  const paths = [...new Set(nodes.map((n) => n.getAttribute('data-hd-src')).concat(posters.map((n) => n.getAttribute('data-hd-poster'))))];
+  try { for (let i = 0; i < paths.length; i += 100) Object.assign(urls, await files.sign(paths.slice(i, i + 100))); } catch (e) { snack('No se pudieron cargar los videos: ' + e.message); }
   for (const n of nodes) { const u = urls[n.getAttribute('data-hd-src')]; if (u) n.setAttribute('src', u); }
+  for (const n of posters) { const u = urls[n.getAttribute('data-hd-poster')]; if (u) n.setAttribute('poster', u); }
 }
-function stripMedia(d) { for (const n of $$('[data-hd-src]', d)) n.removeAttribute('src'); }
+function stripMedia(d) {
+  for (const n of $$('[data-hd-src]', d)) n.removeAttribute('src');
+  for (const n of $$('[data-hd-poster]', d)) n.removeAttribute('poster');
+}
+
+// ---- documentos grandes: si el HTML pasa de este tamaño se guarda como archivo en el almacenamiento
+const BIG_HTML = 3 * 1024 * 1024;
+const MAX_IMPORT = 40 * 1024 * 1024;
+async function loadContent(row) {
+  if (row.content_path) {
+    const urls = await files.sign([row.content_path]);
+    const u = urls[row.content_path];
+    if (!u) throw new Error('No se pudo abrir el archivo del documento.');
+    let r;
+    try { r = await fetch(u); } catch (e) { throw new Error('Sin conexión a Internet.'); }
+    if (!r.ok) throw new Error('No se pudo descargar el documento (' + r.status + ').');
+    row.content = await r.text();
+  }
+  row.content = ensureDoc(row.content, row.title);
+  return row;
+}
+// Guarda el HTML (en la base de datos o, si es grande, como archivo). q = filtro para la actualización.
+async function persistContent(d, html, q, onProgress) {
+  const old = d.content_path || null;
+  let patch;
+  if (html.length > BIG_HTML) {
+    const path = `${d.id}/_documento-${rid()}.html`;
+    await files.upload(path, new Blob([html], { type: 'text/html' }), onProgress);
+    patch = { content: '', content_path: path };
+  } else {
+    patch = { content: html, content_path: null };
+  }
+  const rows = await db.update('hd_documents', q || `id=eq.${d.id}`, patch);
+  if (rows && rows.length) {
+    d.content_path = patch.content_path;
+    if (old && old !== patch.content_path) api(`/storage/v1/object/${BUCKET}`, { method: 'DELETE', body: { prefixes: [old] } }).catch(() => {});
+  } else if (patch.content_path) {
+    api(`/storage/v1/object/${BUCKET}`, { method: 'DELETE', body: { prefixes: [patch.content_path] } }).catch(() => {});
+  }
+  return rows;
+}
+// Saca las imágenes/videos/audios incrustados (data:...) y los sube como archivos privados.
+async function extractEmbedded(doc, docId, onProgress) {
+  const pairs = [['img', 'src'], ['video', 'src'], ['video', 'poster'], ['source', 'src'], ['audio', 'src'], ['input', 'src'], ['embed', 'src']];
+  const items = [];
+  for (const [tag, at] of pairs) for (const n of $$(tag, doc)) {
+    const v = n.getAttribute(at) || '';
+    if (/^data:(image|video|audio)\//i.test(v) && v.length > 40000) items.push([n, at, v]);
+  }
+  let done = 0, skipped = 0;
+  for (const [n, at, v] of items) {
+    try {
+      const blob = await (await fetch(v)).blob();
+      if (blob.size > MAX_FILE) { skipped++; continue; }
+      const type = blob.type || 'application/octet-stream';
+      const ext = (type.split('/')[1] || 'bin').replace('jpeg', 'jpg').replace(/[^a-z0-9]/gi, '').slice(0, 5) || 'bin';
+      const path = `${docId}/${rid()}.${ext}`;
+      await files.upload(path, new Blob([blob], { type }), (p) => onProgress && onProgress((done + p) / items.length));
+      if (at === 'poster') { n.setAttribute('data-hd-poster', path); n.removeAttribute('poster'); }
+      else { n.setAttribute('data-hd-src', path); n.removeAttribute(at); }
+    } catch (e) { skipped++; }
+    done++;
+    onProgress && onProgress(done / items.length);
+  }
+  return { total: items.length, skipped };
+}
 function setTitleTag(d, title) {
   let t = d.querySelector('head > title');
   if (!t) { t = d.createElement('title'); d.head.prepend(t); }
@@ -664,7 +731,8 @@ async function createDoc(tpl, html, title) {
   const stop = busy('Creando documento…');
   try {
     const content = html ? ensureDoc(html, title) : tpl.make(title);
-    const [row] = await db.insert('hd_documents', { title, content });
+    const [row] = await db.insert('hd_documents', { title, content: content.length > BIG_HTML ? '' : content });
+    if (content.length > BIG_HTML) { await persistContent(row, content); row.content = content; }
     stop();
     state.docs.unshift(row);
     Doc.open(row.id, { edit: true, code: !!(tpl && tpl.code), fresh: row });
@@ -701,11 +769,30 @@ function pickFile(accept) {
 async function importHtml() {
   const f = await pickFile('text/html,.html,.htm');
   if (!f) return;
-  if (f.size > 5 * 1024 * 1024) { snack('El archivo HTML pasa de 5 MB.'); return; }
+  if (f.size > MAX_IMPORT) { dialog({ title: 'Archivo muy grande', text: `Pesa ${(f.size / 1048576).toFixed(1)} MB y el máximo es 40 MB.`, actions: [{ label: 'Aceptar', primary: true }] }); return; }
   const text = await f.text();
   const m = text.match(/<title[^>]*>([^<]*)<\/title>/i);
-  const title = (m && m[1].trim()) || f.name.replace(/\.html?$/i, '') || 'Documento importado';
-  createDoc(null, text, title.slice(0, 120));
+  const title = ((m && m[1].trim()) || f.name.replace(/\.html?$/i, '') || 'Documento importado').slice(0, 120);
+  if (text.length < BIG_HTML && !/src\s*=\s*["']?data:(image|video|audio)\//i.test(text)) { createDoc(null, text, title); return; }
+  // archivo grande: primero se crea el documento, luego se suben sus imágenes/videos y al final el HTML
+  const pb = progressBox('Importando archivo…');
+  let row = null;
+  try {
+    [row] = await db.insert('hd_documents', { title, content: '' });
+    const doc = parseHtml(ensureDoc(text, title));
+    const res = await extractEmbedded(doc, row.id, (p) => pb.set(p * 0.85));
+    const html = serialize(doc);
+    await persistContent(row, html, null, (p) => pb.set(0.85 + p * 0.15));
+    pb.close();
+    state.docs.unshift(row);
+    if (res.skipped) snack(`${res.skipped} archivo(s) incrustado(s) no se pudieron subir (más de 50 MB o tipo no permitido).`, 5000);
+    else if (res.total) snack(`Importado: ${res.total} imagen(es)/video(s) guardados aparte.`);
+    Doc.open(row.id);
+  } catch (e) {
+    pb.close();
+    if (row) { files.removeFolder(row.id); db.remove('hd_documents', `id=eq.${row.id}`).catch(() => {}); }
+    snack(e.message, 5000);
+  }
 }
 async function renameDoc(d, after) {
   const t = await promptBox({ title: 'Cambiar nombre', value: d.title, ok: 'Guardar', validate: (v) => (v ? '' : 'Escribe un nombre.') });
@@ -742,8 +829,9 @@ async function leaveDoc(d, after) {
 async function downloadDoc(id) {
   const stop = busy('Preparando archivo…');
   try {
-    const [d] = await db.select('hd_documents', `id=eq.${id}&select=title,content`);
-    const doc = parseHtml(ensureDoc(d.content, d.title));
+    const [d] = await db.select('hd_documents', `id=eq.${id}&select=title,content,content_path`);
+    await loadContent(d);
+    const doc = parseHtml(d.content);
     await resolveMedia(doc);
     const name = (d.title || 'documento').replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 80) + '.html';
     stop();
@@ -1094,7 +1182,10 @@ const Doc = {
         dialog({ title: 'Sin acceso', text: 'Este documento no existe o el propietario quitó tu acceso.', actions: [{ label: 'Aceptar', primary: true }] });
         return;
       }
-      this.d = rows[0]; this.d.content = ensureDoc(this.d.content, this.d.title); this.role = role;
+      this.d = rows[0]; this.role = role;
+      if (opt.fresh && opt.fresh.content) this.d.content = ensureDoc(this.d.content, this.d.title);
+      else await loadContent(this.d);
+      if (token !== this.loadToken) return;
       if (opt.edit && this.canEdit) await this.startEdit(opt.code); else await this.showView();
     } catch (e) {
       if (token !== this.loadToken) return;
@@ -1212,7 +1303,8 @@ const Doc = {
     this.setState('');
     if (this.mode === 'code') this.mountCode(this.d.content); else await this.mountEditor(this.d.content);
     clearInterval(this.timer);
-    this.timer = setInterval(() => this.tick(), 700);
+    this.big = (this.d.content || '').length > 1024 * 1024;
+    this.timer = setInterval(() => this.tick(), this.big ? 2500 : 700);
   },
 
   async mountEditor(html) {
@@ -1286,7 +1378,7 @@ const Doc = {
     if (this.mode === 'view' || !this.d) return;
     const html = this.currentHtml();
     if (html !== this.lastHtml) { this.lastHtml = html; this.dirty = true; this.dirtyAt = Date.now(); this.setState('Editando…'); }
-    if (this.dirty && !this.saving && Date.now() - this.dirtyAt > 1300 && Date.now() >= (this.retryAt || 0)) this.save();
+    if (this.dirty && !this.saving && Date.now() - this.dirtyAt > (this.big ? 4000 : 1300) && Date.now() >= (this.retryAt || 0)) this.save();
     if (this.mode === 'edit') this.updateFmtState();
   },
 
@@ -1302,7 +1394,7 @@ const Doc = {
       const doc = parseHtml(content); setTitleTag(doc, d.title); stripMedia(doc);
       const clean = serialize(doc);
       const q = force ? `id=eq.${d.id}` : `id=eq.${d.id}&updated_at=eq.${encodeURIComponent(d.updated_at)}`;
-      const rows = await db.update('hd_documents', q, { content: clean });
+      const rows = await persistContent(d, clean, q);
       if (!rows || !rows.length) { this.saving = false; return this.conflict(content); }
       d.updated_at = rows[0].updated_at; d.content = clean; d.edited_by = rows[0].edited_by;
       const cached = state.docs.find((x) => x.id === d.id); if (cached) cached.updated_at = d.updated_at;
@@ -1327,7 +1419,7 @@ const Doc = {
       text: `${latest.edited_by || 'Alguien'} modificó este documento mientras lo editabas. ¿Qué versión quieres conservar?`,
       dismiss: false,
       actions: [
-        { label: 'Cargar la de ellos', onClick: async () => { this.d = latest; this.d.content = ensureDoc(latest.content, latest.title); if (this.mode === 'code') this.mountCode(this.d.content); else await this.mountEditor(this.d.content); this.setState('Actualizado'); } },
+        { label: 'Cargar la de ellos', onClick: async () => { this.d = await loadContent(latest); if (this.mode === 'code') this.mountCode(this.d.content); else await this.mountEditor(this.d.content); this.setState('Actualizado'); } },
         { label: 'Guardar la mía', primary: true, onClick: () => { this.d.updated_at = latest.updated_at; this.lastHtml = mine; this.dirty = true; this.dirtyAt = 0; this.save(true); } },
       ],
     });
