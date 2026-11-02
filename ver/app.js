@@ -24,6 +24,12 @@ const BUCKET = 'hd-archivos';
 const WEB_URL = String(CFG.web || 'https://jjfs892009-byte.github.io/docs-html-web/').replace(/\/?$/, '/');
 const MAX_FILE = 50 * 1024 * 1024;
 if (CFG.dark) document.documentElement.classList.add('dark');
+// Cuentas que sí pueden tomar capturas de pantalla en la app
+const ADMIN_EMAILS = ['jjfs892009@gmail.com'];
+const Bridge = {
+  sel(a) { try { if (window.Android) window.Android.setSelection(CFG.token || '', !!a); } catch (e) {} },
+  secure(on) { try { if (window.Android && window.Android.setSecure) window.Android.setSecure(CFG.token || '', !!on); } catch (e) {} },
+};
 
 // ===================================================================== utilidades
 const $ = (s, r = document) => r.querySelector(s);
@@ -404,7 +410,13 @@ const PROTECT_SCRIPT = `(function(){var s=function(e){var t=e.target;if(t&&(t.ta
 // El marco completo se invierte con la GPU (clase .dark en el iframe); aquí solo se vuelven a invertir imágenes y videos.
 const DARK_DOC_CSS = `html{background:#fff}img,video,picture,canvas,iframe,object,embed,[data-yt]>span,[style*="background-image"],[style*="background: url"],[style*="background:url"]{filter:invert(1) hue-rotate(180deg)!important}`;
 const docDark = {
-  get on() { return store.get('hd_docdark', !!CFG.dark); },
+  // Por defecto cada documento se ve con sus colores originales; en oscuro solo si tú lo eliges
+  // (o si es tu documento y tu teléfono está en modo oscuro).
+  get on() {
+    const v = store.get('hd_docdark', null);
+    if (v !== null) return !!v;
+    return !!CFG.dark && (Doc.role === 'propietario' || Doc.role === 'editor');
+  },
   set on(v) { store.set('hd_docdark', !!v); },
   apply(d) {
     const old = d.getElementById('hd-dark-style'); if (old) old.remove();
@@ -415,8 +427,44 @@ const docDark = {
   frame(f) { f.classList.toggle('dark', this.on); f.style.background = '#fff'; },
 };
 
+// Convierte en enlaces (azules) las direcciones escritas o pegadas como texto.
+const URL_RE = /\b(?:https?:\/\/|www\.)[^\s<>"'`]+/gi;
+function linkify(d) {
+  if (!d.body) return 0;
+  const skip = new Set(['A', 'SCRIPT', 'STYLE', 'TEXTAREA', 'CODE', 'PRE', 'BUTTON', 'SELECT', 'OPTION', 'TITLE']);
+  const walker = d.createTreeWalker(d.body, NodeFilter.SHOW_TEXT, {
+    acceptNode(n) {
+      if (!n.nodeValue || !/https?:\/\/|www\./i.test(n.nodeValue)) return NodeFilter.FILTER_REJECT;
+      for (let p = n.parentNode; p && p !== d.body; p = p.parentNode) if (skip.has(p.nodeName)) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    },
+  });
+  const nodes = []; while (walker.nextNode()) nodes.push(walker.currentNode);
+  let count = 0;
+  for (const n of nodes) {
+    const text = n.nodeValue, frag = d.createDocumentFragment();
+    let last = 0, found = 0; URL_RE.lastIndex = 0; let m;
+    while ((m = URL_RE.exec(text))) {
+      let url = m[0];
+      const trail = url.match(/[.,;:!?)\]}»”]+$/); if (trail) url = url.slice(0, -trail[0].length);
+      if (!url) continue;
+      frag.appendChild(d.createTextNode(text.slice(last, m.index)));
+      const a = d.createElement('a');
+      a.href = /^www\./i.test(url) ? 'https://' + url : url;
+      a.textContent = url;
+      frag.appendChild(a);
+      last = m.index + url.length; count++; found++;
+    }
+    if (!found) continue;
+    frag.appendChild(d.createTextNode(text.slice(last)));
+    n.parentNode.replaceChild(frag, n);
+  }
+  return count;
+}
+
 async function buildViewerHtml(html) {
   const d = parseHtml(html);
+  linkify(d);
   await resolveMedia(d);
   docDark.apply(d);
   for (const im of $$('img', d)) { if (!im.hasAttribute('loading')) im.setAttribute('loading', 'lazy'); im.setAttribute('decoding', 'async'); }
@@ -556,9 +604,10 @@ window.hdResume = function () {
 const state = { screen: 'login', docs: [], myShares: {}, sharedDocs: new Set(), requests: [], filter: 'all', layout: store.get('hd_layout', 'list') };
 function go(screen) {
   closeAllLayers();
+  Bridge.secure(!(Auth.s && ADMIN_EMAILS.includes(Auth.email)));
   state.screen = screen;
   for (const s of ['login', 'home', 'doc']) $('#scr-' + s).hidden = s !== screen;
-  Native.setSelection(false);
+  Bridge.sel(false);
   if (screen === 'home') {
     renderAvatar(); loadHome();
     const pc = store.get('hd_pending_code', null);
@@ -1278,7 +1327,7 @@ const Doc = {
   async showView() {
     this.mode = 'view';
     clearInterval(this.timer);
-    Native.setSelection(false);
+    Bridge.sel(false);
     this.renderTop();
     $('#fmt-bar').hidden = true;
     const body = $('#doc-body');
@@ -1305,7 +1354,7 @@ const Doc = {
     if (!this.canEdit) return;
     this.mode = code ? 'code' : 'edit';
     $('#fab-edit').hidden = true;
-    Native.setSelection(true);
+    Bridge.sel(true);
     this.lastSavedContent = this.d.content;
     this.renderTop();
     this.setState('');
@@ -1442,6 +1491,7 @@ const Doc = {
   },
 
   async stopEdit() {
+    if (this.mode === 'edit' && this.fdoc) { try { linkify(this.fdoc); } catch (e) {} }
     await this.saveNow();
     if (this.dirty) {
       const leave = await confirmBox('Cambios sin guardar', 'No se pudieron guardar los últimos cambios (revisa tu conexión). Si sales ahora se perderán.', 'Salir igual', true);
@@ -1629,6 +1679,15 @@ const Doc = {
   },
 };
 
+// ¿Es un enlace a otro documento de Docs HTML? Devuelve su código.
+function internalCode(url) {
+  try {
+    const u = new URL(url);
+    const isOurs = u.protocol === 'docshtml:' || url.startsWith(WEB_URL) || /docs-html-web/.test(u.pathname);
+    const c = (u.searchParams.get('c') || '').toUpperCase();
+    return isOurs && /^[0-9A-Z]{8}$/.test(c) ? c : '';
+  } catch (e) { return ''; }
+}
 // enlaces tocados dentro de un documento (vista protegida)
 window.addEventListener('message', async (e) => {
   const data = e.data;
@@ -1636,6 +1695,8 @@ window.addEventListener('message', async (e) => {
   const fromDoc = $$('iframe').some((f) => f.contentWindow === e.source);
   if (!fromDoc) return;
   const url = data.hdOpen;
+  const own = internalCode(url);
+  if (own) { openCode(own); return; }
   if (!/^(https?:|mailto:|tel:)/i.test(url)) return;
   if (await confirmBox('¿Abrir enlace?', url, 'Abrir')) Native.openExternal(url);
 });
